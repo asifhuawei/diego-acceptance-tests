@@ -75,9 +75,9 @@ var _ = Describe("Application Lifecycle", func() {
 
 		Describe("An app staged with DEA and running on Diego", func() {
 			BeforeEach(func() {
-				Eventually(cf.Cf("push", appName, "-p", assets.NewAssets().Standalone, "--no-start", "-b", DEA_NULL_BUILDPACK), CF_PUSH_TIMEOUT).Should(Exit(0))
+				Eventually(cf.Cf("push", appName, "-p", assets.NewAssets().Standalone, "-b", DEA_NULL_BUILDPACK), CF_PUSH_TIMEOUT).Should(Exit(0))
 				Eventually(cf.Cf("set-env", appName, "DIEGO_RUN_BETA", "true")).Should(Exit(0))
-				Eventually(cf.Cf("start", appName), CF_PUSH_TIMEOUT).Should(Exit(0))
+				Eventually(cf.Cf("restart", appName), CF_PUSH_TIMEOUT).Should(Exit(0))
 			})
 
 			describeLifeCycle()
