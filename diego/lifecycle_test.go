@@ -14,7 +14,35 @@ import (
 	"github.com/cloudfoundry-incubator/diego-acceptance-tests/helpers/assets"
 )
 
-var _ = Describe("Application Lifecycle", func() {
+type AppUsageEvent struct {
+	Entity struct {
+		AppName       string `json:"app_name"`
+		State         string `json:"state"`
+		BuildpackName string `json:"buildpack_name"`
+		BuildpackGuid string `json:"buildpack_guid"`
+	} `json:"entity"`
+}
+
+type AppUsageEvents struct {
+	Resources []AppUsageEvent `struct:"resources"`
+}
+
+func lastAppUsageEvent(appName string, state string) (bool, AppUsageEvent) {
+	var response AppUsageEvents
+	cf.AsUser(context.AdminUserContext(), func() {
+		cf.ApiRequest("GET", "/v2/app_usage_events?order-direction=desc&page=1", &response)
+	})
+
+	for _, event := range response.Resources {
+		if event.Entity.AppName == appName && event.Entity.State == state {
+			return true, event
+		}
+	}
+
+	return false, AppUsageEvent{}
+}
+
+var _ = FDescribe("Application Lifecycle", func() {
 	var appName string
 
 	apps := func() *Session {
@@ -63,6 +91,10 @@ var _ = Describe("Application Lifecycle", func() {
 			By("verifying it's up")
 			Eventually(helpers.CurlingAppRoot(appName)).Should(ContainSubstring("Hi, I'm Dora!"))
 
+			By("checking its start app-events")
+			found, _ := lastAppUsageEvent(appName, "STARTED")
+			Expect(found).To(BeTrue())
+
 			By("checking its LANG")
 			Ω(helpers.CurlApp(appName, "/env/LANG")).Should(ContainSubstring("en_US.UTF-8"))
 
@@ -73,6 +105,10 @@ var _ = Describe("Application Lifecycle", func() {
 			By("stopping it")
 			Eventually(cf.Cf("stop", appName)).Should(Exit(0))
 			Eventually(helpers.CurlingAppRoot(appName)).Should(ContainSubstring("404"))
+
+			By("checking its stop app-events")
+			found1, _ := lastAppUsageEvent(appName, "STOPPED")
+			Expect(found1).To(BeTrue())
 
 			By("setting an environment variable")
 			Eventually(cf.Cf("set-env", appName, "LANG", "en_GB.ISO8859-1")).Should(Exit(0))
